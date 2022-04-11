@@ -1,15 +1,15 @@
-# Interpolative Distillation for Unifying Biased and Debiased Recommendation
-This is the official pytorch implementation of InterD, a debiasing & biasing method for recommendation system. InterD is proposed in the paper:
+# InterD
+This is the official pytorch implementation of InterD, a debiasing method for recommendation system. InterD is proposed in the paper:
 
 [Interpolative Distillation for Unifying Biased and Debiased Recommendation]
 
 by  Sihao Ding, Fuli Feng, Xiangnan He, Jinqiu Jin, Wenjie Wang, Yong Liao and Yongdong Zhang
 
-Published at SIGIR 2022.
+Published at SIGIR 2022. If you use this code please cite our paper.
 
 ## Introduction
 
-InterD is a method that unifies biased and debiased methods to ahcieve strong performance on both normal biased test and debiased test and alleviates over-debiased issue and bias amplification issue in recommendation.
+InterD is a method that unifies biased and debiased methods as teachers to ahcieve strong performance on both normal biased test and debiased test with alleviating over-debiased issue and bias amplification issue in recommendation.
 
 ## Environment Requirement
 
@@ -21,3 +21,16 @@ The code runs well under python 3.8.10. The required packages are as follows:
 - pandas == 1.1.3
 - cppimport == 20.8.4.2
 - tqdm == 4.62.3 
+
+## Datasets
+We use two public datasets (Yahoo!R3 and Coat) and a private dataset. 
+
+- user.txt: biased data collected by normal policy of recommendation platform. For Yahoo!R3 and Coat, each line is user ID, item ID, rating of the user to the item. For Simulation, each line is user ID, item ID, position of the item, binary rating of the user to the item. 
+- random.txt: unbiased data collected by stochastic policy where items are assigned to users randomly. Each line in the file is user ID, item ID, rating of the user to the item. 
+
+## Run the Code
+You can quickly reproduced the results on Yahoo!R3 with the default parameters with the commend:
+```shell
+python train_explicit.py --dataset yahooR3
+```
+To implement this code with other datasets or other teacher models you may need to fine-tune the hypermenters, and you can find out all hypermenters in arguments.py.

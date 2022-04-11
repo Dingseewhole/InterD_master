@@ -33,4 +33,7 @@ You can quickly reproduced the results on Yahoo!R3 with the default parameters w
 ```shell
 python train_explicit.py --dataset yahooR3
 ```
-To implement this code with other datasets or other teacher models you may need to fine-tune the hypermenters, and you can find out all hypermenters in arguments.py.
+To implement this code with other datasets or other teacher models you may need to fine-tune the hypermenters, and you can find out all hypermenters in _arguments.py_.
+
+## Acknowledgment
+Some parts of this repository are adopted from AutoDebias and Meta-learning, you can find more information in https://github.com/DongHande/AutoDebias and https://github.com/AdrienLE.

@@ -69,7 +69,8 @@ def both_test(loader, model_name, testname, K = 5, dataset = "None"):
     U = test_results['UAUC']
     N = test_results['NDCG']
     print(f'The performances of {testname[0]} on {testname[2]}ed test are UAUC: {str(U)}, NDCG: {str(N)}')
-    return test_results
+    # fitlog.add_best_metric({f"{testname[1]}_{testname[2]}_test":{"MSE":test_results['MSE'], "AUC":test_results['AUC'], "UAUC":test_results['UAUC'], "NDCG":test_results['NDCG']}})
+    return test_results, U, N
 
 def train_and_eval_MF(bias_train, bias_validation, bias_test, unif_validation, unif_test, m, n, device = 'cuda', args=None):
     print('*************************Train biased model MF************************************')
@@ -89,8 +90,11 @@ def train_and_eval_MF(bias_train, bias_validation, bias_test, unif_validation, u
     val_loader = utils.data_loader.DataLoader(utils.data_loader.Interactions(unif_validation), batch_size=args.training_args['batch_size'], shuffle=False, num_workers=0)
     test_loader = utils.data_loader.DataLoader(utils.data_loader.Interactions(unif_test), batch_size=args.training_args['batch_size'], shuffle=False, num_workers=0)
     
+    # data shape
+    # n_user, n_item = train_data.shape
     n_user, n_item = m, n
 
+    
     # Base model and its optimizer. This optimizer is for optimize parameters in base model using the updated weights (true optimization).
     base_model = MF_MSE(n_user, n_item, dim=args.MF_model_args['emb_dim'], dropout=0).to(device)
     base_optimizer = torch.optim.SGD(base_model.params(), lr=args.MF_model_args['learning_rate'], weight_decay=0) # todo: other optimizer SGD
@@ -113,9 +117,9 @@ def train_and_eval_MF(bias_train, bias_validation, bias_test, unif_validation, u
                 # training set: 1. update parameters one_step (assumed update); 2. update parameters (real update) 
                 # uniform set: update hyper_parameters using gradient descent. 
                 if args.type == 'implicit':
-                    users_train, items_train, y_train = train_loader.get_batch_Wneg(users, items, neg_item_all)
+                    users_train, items_train, y_train = train_loader.get_batch_Wneg(users, items, neg_item_all)#取出所有这个batch的训练数据的UIpair和值
                 else:
-                    users_train, items_train, y_train = train_loader.get_batch(users, items)
+                    users_train, items_train, y_train = train_loader.get_batch(users, items)#取出所有这个batch的训练数据的UIpair和值
                 if args.dataset == 'coat':
                     y_train = torch.where(y_train<-1*torch.ones_like(y_train), -1*torch.ones_like(y_train), y_train)
                     y_train = torch.where(y_train >1*torch.ones_like(y_train), torch.ones_like(y_train), y_train)
@@ -161,6 +165,11 @@ def train_and_eval_MF(bias_train, bias_validation, bias_test, unif_validation, u
             val_results = utils.metrics.evaluate(val_pre_ratings, val_ratings, ['MSE', 'AUC'])
 
         print('Epoch: {0:2d} / {1}, MF Traning log: {2}, Unbiased Validation: {3}'.format(epo, args.training_args['epochs']*10, ' '.join([key+':'+'%.3f'%train_results[key] for key in train_results]),' '.join([key+':'+'%.3f'%val_results[key] for key in val_results])))
+        # if (epo % 100 == 0) and (args.dataset != 'kuai'):
+        #     # test metrics on unbias
+        #     step_test_result = step_test(test_loader, base_model, 'unbias', epo)
+        #     # test metrics on bias
+        #     step_test_result = step_test(biastest_loader, base_model, 'bias', epo)
 
         if epo>=20 and early_stopping.check([val_results['AUC']], epo):
             # fitlog.add_best_metric({"bias_val":{"Earlystop":epo}})
@@ -172,12 +181,12 @@ def train_and_eval_MF(bias_train, bias_validation, bias_test, unif_validation, u
 
     # test metrics on unbias
     print('#'*30)
-    MF_unbias_result = both_test(test_loader, base_model, ('MF', 'MF', 'unbias'), K=5, dataset= args.dataset)
+    MF_unbias_result, U_MF_unbias, N_MF_unbias = both_test(test_loader, base_model, ('MF', 'MF', 'unbias'), K=5, dataset= args.dataset)
 
     # test metrics on bias
-    MF_unbias_result = both_test(biastest_loader, base_model, ('MF', 'MF', 'bias'), K = 5, dataset= args.dataset)
+    MF_unbias_result, U_MF_bias, N_MF_bias = both_test(biastest_loader, base_model, ('MF', 'MF', 'bias'), K = 5, dataset= args.dataset)
     print('#'*30)
-    return base_model
+    return base_model, (U_MF_unbias, N_MF_unbias, U_MF_bias, N_MF_bias)
 
 def train_and_eval_AutoDebias(bias_train, bias_validation, bias_test, unif_train, unif_validation, unif_test, m, n, device = 'cuda', args=None):
     print('*************************Train debiased model AutoDebias************************************')
@@ -283,7 +292,7 @@ def train_and_eval_AutoDebias(bias_train, bias_validation, bias_test, unif_train
                 loss_l = sum_criterion(y_hat_l, y_unif)
                 lossl_sum += loss_l
 
-                # update hyper-parameters
+                # update hyper-parameters（在unbiased data上算imputation w1和w2准不准）
                 weight1_optimizer.zero_grad()
                 weight2_optimizer.zero_grad()
                 imputation_optimizer.zero_grad()
@@ -357,14 +366,14 @@ def train_and_eval_AutoDebias(bias_train, bias_validation, bias_test, unif_train
     print('Loading {}th epoch'.format(early_stopping.best_epoch))
     base_model.load_state_dict(early_stopping.best_state)
     print('#'*30)
-    Auto_unbias_result = both_test(test_loader, base_model, ('CF', 'Auto', 'unbias'), K=5, dataset=args.dataset)
+    Auto_unbias_result, U_Auto_unbias, N_Auto_unbias = both_test(test_loader, base_model, ('CF', 'Auto', 'unbias'), K=5, dataset=args.dataset)
 
     # test metrics on bias
-    Auto_unbias_result = both_test(biastest_loader, base_model, ('CF', 'Auto', 'bias'), K=5, dataset=args.dataset)
+    Auto_unbias_result, U_Auto_bias, N_Auto_bias = both_test(biastest_loader, base_model, ('CF', 'Auto', 'bias'), K=5, dataset=args.dataset)
     print('#'*30)
-    return (base_model, weight1_model, weight2_model, imputation_model)
+    return (base_model, weight1_model, weight2_model, imputation_model), (U_Auto_unbias, N_Auto_unbias, U_Auto_bias, N_Auto_bias)
 
-def train_and_eval_InterD(bias_train, bias_validation, bias_test, unif_validation, unif_test, m, n, Trained_MF_model, Trained_AutoDebias_model, device = 'cuda', gama=999, args=None):
+def train_and_eval_InterD(bias_train, bias_validation, bias_test, unif_validation, unif_test, m, n, Trained_MF_model, Trained_AutoDebias_model, MF_metrics, Auto_metrics, device = 'cuda', gama=999, args=None):
     print('*************************Train InterD************************************')
     train_dense = bias_train.to_dense()
     if args.dataset == 'coat':
@@ -500,6 +509,18 @@ def train_and_eval_InterD(bias_train, bias_validation, bias_test, unif_validatio
     print('Loading {}th epoch'.format(early_stopping_cff.best_epoch))
     CFF_model.load_state_dict(early_stopping_cff.best_state)
 
+    #MF results
+    print('#'*30)
+    print(f'The performances of MF on unbiased test are UAUC: {str(MF_metrics[0])}, NDCG: {str(MF_metrics[1])}')
+    print(f'The performances of MF on unbiased test are UAUC: {str(MF_metrics[2])}, NDCG: {str(MF_metrics[3])}')
+    print('#'*30)
+
+    #AutoSebias results
+    print('#'*30)
+    print(f'The performances of AutoDebias on unbiased test are UAUC: {str(AutoDebias_metrics[0])}, NDCG: {str(AutoDebias_metrics[1])}')
+    print(f'The performances of AutoDebias on unbiased test are UAUC: {str(AutoDebias_metrics[2])}, NDCG: {str(AutoDebias_metrics[3])}')
+    print('#'*30)
+
     # test metrics on unbias
     print('#'*30)
     CFF_unbias_result = both_test(test_loader, CFF_model, ('InterD', 'CFF', 'unbias'))
@@ -517,6 +538,6 @@ if __name__ == "__main__":
 
     bias_train, bias_validation, bias_test, unif_train, unif_validation, unif_test, m, n = utils.load_dataset.load_dataset(data_name=args.dataset, type = args.type, seed = args.seed, device=device)
 
-    Trained_MF_model = train_and_eval_MF(bias_train+unif_train, bias_validation, bias_test, unif_validation, unif_test, m, n, args=args)
-    Trained_AutoDebias_model = train_and_eval_AutoDebias(bias_train, bias_validation, bias_test, unif_train, unif_validation, unif_test, m, n, args=args)
-    train_and_eval_InterD(bias_train+unif_train, bias_validation, bias_test, unif_validation, unif_test, m, n, Trained_MF_model, Trained_AutoDebias_model, gama = args.gama, args=args)
+    Trained_MF_model, MF_metrics = train_and_eval_MF(bias_train+unif_train, bias_validation, bias_test, unif_validation, unif_test, m, n, args=args)
+    Trained_AutoDebias_model, Auto_metrics = train_and_eval_AutoDebias(bias_train, bias_validation, bias_test, unif_train, unif_validation, unif_test, m, n, args=args)
+    train_and_eval_InterD(bias_train+unif_train, bias_validation, bias_test, unif_validation, unif_test, m, n, Trained_MF_model, Trained_AutoDebias_model, MF_metrics, Auto_metrics, gama = args.gama, args=args)

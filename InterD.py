@@ -512,13 +512,13 @@ def train_and_eval_InterD(bias_train, bias_validation, bias_test, unif_validatio
     #MF results
     print('#'*30)
     print(f'The performances of MF on unbiased test are UAUC: {str(MF_metrics[0])}, NDCG: {str(MF_metrics[1])}')
-    print(f'The performances of MF on unbiased test are UAUC: {str(MF_metrics[2])}, NDCG: {str(MF_metrics[3])}')
+    print(f'The performances of MF on biased test are UAUC: {str(MF_metrics[2])}, NDCG: {str(MF_metrics[3])}')
     print('#'*30)
 
     #AutoSebias results
     print('#'*30)
     print(f'The performances of AutoDebias on unbiased test are UAUC: {str(AutoDebias_metrics[0])}, NDCG: {str(AutoDebias_metrics[1])}')
-    print(f'The performances of AutoDebias on unbiased test are UAUC: {str(AutoDebias_metrics[2])}, NDCG: {str(AutoDebias_metrics[3])}')
+    print(f'The performances of AutoDebias on biased test are UAUC: {str(AutoDebias_metrics[2])}, NDCG: {str(AutoDebias_metrics[3])}')
     print('#'*30)
 
     # test metrics on unbias

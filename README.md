@@ -23,17 +23,17 @@ The code runs well under python 3.8.10. The required packages are as follows:
 - tqdm == 4.62.3 
 
 ## Datasets
-We use two public datasets (Yahoo!R3 and Coat) and a private dataset. 
+We use public/private dataset. 
 
 - user.txt: biased data collected by normal policy of recommendation platform. For Yahoo!R3 and Coat, each line is user ID, item ID, rating of the user to the item. For Simulation, each line is user ID, item ID, position of the item, binary rating of the user to the item. 
 - random.txt: unbiased data collected by stochastic policy where items are assigned to users randomly. Each line in the file is user ID, item ID, rating of the user to the item. 
 
 ## Run the Code
-You can quickly reproduced the results on Yahoo!R3 with the default parameters with the commend:
+You can quickly reproduced the results on Yahoo!R3 with the default parameters by the command:
 ```shell
 python train_explicit.py --dataset yahooR3
 ```
-To implement this code with other datasets or other teacher models you may need to fine-tune the hypermenters, and you can find out all hypermenters in _arguments.py_.
+To implement this code with other teacher models or with on other datasets you may need to fine-tune the hypermenters, and you can find out all hypermenters you need in _arguments.py_.
 
 ## Acknowledgment
 Some parts of this repository are adopted from AutoDebias and Meta-learning, you can find more information in https://github.com/DongHande/AutoDebias and https://github.com/AdrienLE.

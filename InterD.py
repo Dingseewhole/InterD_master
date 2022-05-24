@@ -117,9 +117,9 @@ def train_and_eval_MF(bias_train, bias_validation, bias_test, unif_validation, u
                 # training set: 1. update parameters one_step (assumed update); 2. update parameters (real update) 
                 # uniform set: update hyper_parameters using gradient descent. 
                 if args.type == 'implicit':
-                    users_train, items_train, y_train = train_loader.get_batch_Wneg(users, items, neg_item_all)#取出所有这个batch的训练数据的UIpair和值
+                    users_train, items_train, y_train = train_loader.get_batch_Wneg(users, items, neg_item_all)
                 else:
-                    users_train, items_train, y_train = train_loader.get_batch(users, items)#取出所有这个batch的训练数据的UIpair和值
+                    users_train, items_train, y_train = train_loader.get_batch(users, items)
                 if args.dataset == 'coat':
                     y_train = torch.where(y_train<-1*torch.ones_like(y_train), -1*torch.ones_like(y_train), y_train)
                     y_train = torch.where(y_train >1*torch.ones_like(y_train), torch.ones_like(y_train), y_train)
@@ -165,14 +165,8 @@ def train_and_eval_MF(bias_train, bias_validation, bias_test, unif_validation, u
             val_results = utils.metrics.evaluate(val_pre_ratings, val_ratings, ['MSE', 'AUC'])
 
         print('Epoch: {0:2d} / {1}, MF Traning log: {2}, Unbiased Validation: {3}'.format(epo, args.training_args['epochs']*10, ' '.join([key+':'+'%.3f'%train_results[key] for key in train_results]),' '.join([key+':'+'%.3f'%val_results[key] for key in val_results])))
-        # if (epo % 100 == 0) and (args.dataset != 'kuai'):
-        #     # test metrics on unbias
-        #     step_test_result = step_test(test_loader, base_model, 'unbias', epo)
-        #     # test metrics on bias
-        #     step_test_result = step_test(biastest_loader, base_model, 'bias', epo)
 
         if epo>=20 and early_stopping.check([val_results['AUC']], epo):
-            # fitlog.add_best_metric({"bias_val":{"Earlystop":epo}})
             break
 
     # restore best model
@@ -292,7 +286,7 @@ def train_and_eval_AutoDebias(bias_train, bias_validation, bias_test, unif_train
                 loss_l = sum_criterion(y_hat_l, y_unif)
                 lossl_sum += loss_l
 
-                # update hyper-parameters（在unbiased data上算imputation w1和w2准不准）
+                # update hyper-parameters
                 weight1_optimizer.zero_grad()
                 weight2_optimizer.zero_grad()
                 imputation_optimizer.zero_grad()
@@ -513,21 +507,25 @@ def train_and_eval_InterD(bias_train, bias_validation, bias_test, unif_validatio
     print('#'*30)
     print(f'The performances of MF on unbiased test are UAUC: {str(MF_metrics[0])}, NDCG: {str(MF_metrics[1])}')
     print(f'The performances of MF on biased test are UAUC: {str(MF_metrics[2])}, NDCG: {str(MF_metrics[3])}')
-    print('#'*30)
 
     #AutoSebias results
     print('#'*30)
     print(f'The performances of AutoDebias on unbiased test are UAUC: {str(Auto_metrics[0])}, NDCG: {str(Auto_metrics[1])}')
     print(f'The performances of AutoDebias on biased test are UAUC: {str(Auto_metrics[2])}, NDCG: {str(Auto_metrics[3])}')
-    print('#'*30)
 
     # test metrics on unbias
     print('#'*30)
-    CFF_unbias_result = both_test(test_loader, CFF_model, ('InterD', 'CFF', 'unbias'))
+    CFF_unbias_result, U1, N1 = both_test(test_loader, CFF_model, ('InterD', 'CFF', 'unbias'))
 
     # test metrics on bias
-    CFF_bias_result = both_test(biastest_loader, CFF_model, ('InterD', 'CFF', 'bias'))
+    CFF_bias_result, U2, N2 = both_test(biastest_loader, CFF_model, ('InterD', 'CFF', 'bias'))
     print('#'*30)
+
+    print('#'*15, 'The overall performances', '#'*15)
+    print(f'MF ********** F1-UAUC : {str(round(2*MF_metrics[0]*MF_metrics[2]/(MF_metrics[0]+MF_metrics[2]),4))}, F1-NDCG: {str(round(2*MF_metrics[1]*MF_metrics[3]/(MF_metrics[1]+MF_metrics[3]),4))}')
+    print(f'AutoDebias ** F1-UAUC : {str(round(2*Auto_metrics[0]*Auto_metrics[2]/(Auto_metrics[0]+Auto_metrics[2]),4))}, F1-NDCG: {str(round(2*Auto_metrics[1]*Auto_metrics[3]/(Auto_metrics[1]+Auto_metrics[3]),4))}')
+    print(f'InterD ****** F1-UAUC : {str(round(2*U1*U2/(U1+U2),4))}, F1-NDCG: {str(round(2*N1*N2/(N1+N2),4))}')
+
 
 if __name__ == "__main__": 
     args = arguments.parse_args()

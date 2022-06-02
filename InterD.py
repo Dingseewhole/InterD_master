@@ -11,7 +11,6 @@ import utils.metrics
 from utils.early_stop import EarlyStopping, Stop_args, StopVariable
 import time
 import argparse
-
 def setup_seed(seed):
     torch.manual_seed(seed)
     if torch.cuda.is_available(): 
@@ -23,13 +22,22 @@ def para(args):
     if args.dataset == 'yahooR3': 
         args.training_args = {'batch_size': 1024, 'epochs': 2000, 'patience': 80, 'block_batch': [6000, 500]}
         args.InterD_model_args = {"emb_dim": 10, "learning_rate": 0.0005, "weight_decay": 0.01}
-        args.MF_model_args = {"emb_dim": 10, "learning_rate": 5e-6, "weight_decay": 1}
-        args.Auto_model_args = {"emb_dim": 10, "learning_rate": 0.0005, "weight_decay": 10, 'imputaion_lambda': 0.05}
+        args.MF_model_args = {"emb_dim": 10, "learning_rate": 5e-6, "weight_decay": 1, 'patience': 80}
+        args.Auto_model_args = {"emb_dim": 10, "learning_rate": 0.0005, "weight_decay": 10, 'imputaion_lambda': 0.05, 'epoch': 500}
         args.weight1_model_args = { "learning_rate": 0.1, "weight_decay": 0.001}
         args.weight2_model_args = { "learning_rate": 0.001, "weight_decay": 0.01}
         args.imputation_model_args = { "learning_rate": 0.1, "weight_decay": 0.0001}
     elif args.dataset == 'coat':
-        args.training_args = {'batch_size': 128, 'epochs': 2000, 'patience': 80, 'block_batch': [64, 64]}
+        args.training_args = {'batch_size': 128, 'epochs': 2000, 'patience': 100, 'block_batch': [64, 64]}
+        args.InterD_model_args = {"emb_dim": 10, "learning_rate": 0.009, "weight_decay": 0}
+        args.MF_model_args = {"emb_dim": 10, "learning_rate": 0.001, "weight_decay": 0, 'patience': 80}
+        args.Auto_model_args = {"emb_dim": 10, "learning_rate": 1e-5, "weight_decay": 0, 'imputaion_lambda': 0.01, 'epoch': 2000}
+        args.weight1_model_args = { "learning_rate": 1e-5, "weight_decay": 1e-5}
+        args.weight2_model_args = { "learning_rate": 1e-5, "weight_decay": 0}
+        args.imputation_model_args = { "learning_rate": 0.0001, "weight_decay": 0.05}
+        args.gama = 0.5
+        args.gama2 = 1
+        args.beta = 0.05
     else: 
         print('invalid arguments')
         os._exit()
@@ -69,19 +77,11 @@ def both_test(loader, model_name, testname, K = 5, dataset = "None"):
     U = test_results['UAUC']
     N = test_results['NDCG']
     print(f'The performances of {testname[0]} on {testname[2]}ed test are UAUC: {str(U)}, NDCG: {str(N)}')
-    # fitlog.add_best_metric({f"{testname[1]}_{testname[2]}_test":{"MSE":test_results['MSE'], "AUC":test_results['AUC'], "UAUC":test_results['UAUC'], "NDCG":test_results['NDCG']}})
     return test_results, U, N
 
 def train_and_eval_MF(bias_train, bias_validation, bias_test, unif_validation, unif_test, m, n, device = 'cuda', args=None):
     print('*************************Train biased model MF************************************')
     train_dense = bias_train.to_dense()
-    if args.dataset == 'coat':
-        train_dense_norm = torch.where(train_dense<-1*torch.ones_like(train_dense), -1*torch.ones_like(train_dense), train_dense)
-        train_dense_norm = torch.where(train_dense_norm>torch.ones_like(train_dense_norm), torch.ones_like(train_dense_norm), train_dense_norm)
-        del train_dense
-        train_dense = train_dense_norm
-    # uniform data
-    
     # build data_loader. (block matrix data loader)
     train_loader = utils.data_loader.Block(bias_train, u_batch_size=args.training_args['block_batch'][0], i_batch_size=args.training_args['block_batch'][1], device=device)
     biasval_loader = utils.data_loader.DataLoader(utils.data_loader.Interactions(bias_validation), batch_size=args.training_args['batch_size'], shuffle=False, num_workers=0)
@@ -104,7 +104,7 @@ def train_and_eval_MF(bias_train, bias_validation, bias_test, unif_validation, u
     sum_criterion = nn.MSELoss(reduction='sum')
 
     # begin training
-    stopping_args = Stop_args(patience=args.training_args['patience'], max_epochs=args.training_args['epochs'] * 10)
+    stopping_args = Stop_args(patience=args.MF_model_args['patience'], max_epochs=args.training_args['epochs'] * 10)
     early_stopping = EarlyStopping(base_model, **stopping_args)
 
     for epo in range(args.training_args['epochs']*10):
@@ -113,17 +113,7 @@ def train_and_eval_MF(bias_train, bias_validation, bias_test, unif_validation, u
         lossl_sum=0
         for u_batch_idx, users in enumerate(train_loader.User_loader): 
             for i_batch_idx, items in enumerate(train_loader.Item_loader): 
-                # data in this batch ~ 
-                # training set: 1. update parameters one_step (assumed update); 2. update parameters (real update) 
-                # uniform set: update hyper_parameters using gradient descent. 
-                if args.type == 'implicit':
-                    users_train, items_train, y_train = train_loader.get_batch_Wneg(users, items, neg_item_all)
-                else:
-                    users_train, items_train, y_train = train_loader.get_batch(users, items)
-                if args.dataset == 'coat':
-                    y_train = torch.where(y_train<-1*torch.ones_like(y_train), -1*torch.ones_like(y_train), y_train)
-                    y_train = torch.where(y_train >1*torch.ones_like(y_train), torch.ones_like(y_train), y_train)
-                # loss of training set
+                users_train, items_train, y_train = train_loader.get_batch(users, items)
                 base_model.train()
                 # all pair
                 all_pair = torch.cartesian_prod(users, items)
@@ -168,7 +158,6 @@ def train_and_eval_MF(bias_train, bias_validation, bias_test, unif_validation, u
 
         if epo>=20 and early_stopping.check([val_results['AUC']], epo):
             break
-
     # restore best model
     print('Loading {}th epoch'.format(early_stopping.best_epoch))
     base_model.load_state_dict(early_stopping.best_state)
@@ -185,12 +174,6 @@ def train_and_eval_MF(bias_train, bias_validation, bias_test, unif_validation, u
 def train_and_eval_AutoDebias(bias_train, bias_validation, bias_test, unif_train, unif_validation, unif_test, m, n, device = 'cuda', args=None):
     print('*************************Train debiased model AutoDebias************************************')
     train_dense = bias_train.to_dense()
-    if args.dataset == 'coat':
-        train_dense_norm = torch.where(train_dense<-1*torch.ones_like(train_dense), -1*torch.ones_like(train_dense), train_dense)
-        train_dense_norm = torch.where(train_dense_norm>torch.ones_like(train_dense_norm), torch.ones_like(train_dense_norm), train_dense_norm)
-        del train_dense
-        train_dense = train_dense_norm
-    # uniform data
     users_unif = unif_train._indices()[0]
     items_unif = unif_train._indices()[1]
     y_unif = unif_train._values()
@@ -203,8 +186,6 @@ def train_and_eval_AutoDebias(bias_train, bias_validation, bias_test, unif_train
     val_loader = utils.data_loader.DataLoader(utils.data_loader.Interactions(unif_validation), batch_size=args.training_args['batch_size'], shuffle=False, num_workers=0)
     test_loader = utils.data_loader.DataLoader(utils.data_loader.Interactions(unif_test), batch_size=args.training_args['batch_size'], shuffle=False, num_workers=0)
     
-    # data shape
-    # n_user, n_item = train_data.shape
     n_user, n_item = m, n
     
     # Base model and its optimizer. This optimizer is for optimize parameters in base model using the updated weights (true optimization).
@@ -228,7 +209,7 @@ def train_and_eval_AutoDebias(bias_train, bias_validation, bias_test, unif_train
     # begin training
     stopping_args = Stop_args(patience=60, max_epochs=500)
     early_stopping = EarlyStopping(base_model, **stopping_args)
-    for epo in range(500):
+    for epo in range(args.Auto_model_args['epoch']):
         training_loss = 0
         lossf_sum = 0
         lossl_sum=0
@@ -238,10 +219,6 @@ def train_and_eval_AutoDebias(bias_train, bias_validation, bias_test, unif_train
                 # training set: 1. update parameters one_step (assumed update); 2. update parameters (real update) 
                 # uniform set: update hyper_parameters using gradient descent. 
                 users_train, items_train, y_train = train_loader.get_batch(users, items)
-                if args.dataset == 'coat':
-                    y_train = torch.where(y_train<-1*torch.ones_like(y_train), -1*torch.ones_like(y_train), y_train)
-                    y_train = torch.where(y_train >1*torch.ones_like(y_train), torch.ones_like(y_train), y_train)
-                # all pair
                 all_pair = torch.cartesian_prod(users, items)
                 users_all, items_all = all_pair[:,0], all_pair[:,1]
                 
@@ -370,11 +347,6 @@ def train_and_eval_AutoDebias(bias_train, bias_validation, bias_test, unif_train
 def train_and_eval_InterD(bias_train, bias_validation, bias_test, unif_validation, unif_test, m, n, Trained_MF_model, Trained_AutoDebias_model, MF_metrics, Auto_metrics, device = 'cuda', gama=999, args=None):
     print('*************************Train InterD************************************')
     train_dense = bias_train.to_dense()
-    if args.dataset == 'coat':
-        train_dense_norm = torch.where(train_dense<-1*torch.ones_like(train_dense), -1*torch.ones_like(train_dense), train_dense)
-        train_dense_norm = torch.where(train_dense_norm>torch.ones_like(train_dense_norm), torch.ones_like(train_dense_norm), train_dense_norm)
-        del train_dense
-        train_dense = train_dense_norm
     
     # build data_loader. (block matrix data loader)
     train_loader = utils.data_loader.Block(bias_train, u_batch_size=args.training_args['block_batch'][0], i_batch_size=args.training_args['block_batch'][1], device=device)
@@ -410,9 +382,9 @@ def train_and_eval_InterD(bias_train, bias_validation, bias_test, unif_validatio
         for u_batch_idx, users in enumerate(train_loader.User_loader): 
             for i_batch_idx, items in enumerate(train_loader.Item_loader): 
                 users_train, items_train, y_train = train_loader.get_batch(users, items)
-                if args.dataset == 'coat':
-                    y_train = torch.where(y_train<-1*torch.ones_like(y_train), -1*torch.ones_like(y_train), y_train)
-                    y_train = torch.where(y_train >1*torch.ones_like(y_train), torch.ones_like(y_train), y_train)
+                # if args.dataset == 'coat':
+                #     y_train = torch.where(y_train<-1*torch.ones_like(y_train), -1*torch.ones_like(y_train), y_train)
+                #     y_train = torch.where(y_train >1*torch.ones_like(y_train), torch.ones_like(y_train), y_train)
                 CF_pred = CF_model.forward(users_train, items_train)
                 F_pred = F_model.forward(users_train, items_train)
                 weight1 = weight1_model(users_train, items_train,(y_train==1)*1)
@@ -482,7 +454,7 @@ def train_and_eval_InterD(bias_train, bias_validation, bias_test, unif_validatio
                     train_pre_ratings = torch.cat((train_pre_ratings, pre_ratings))
                     train_ratings = torch.cat((train_ratings, y_train))
 
-            train_results = utils.metrics.evaluate(train_pre_ratings, train_ratings, ['MSE'])
+            train_results = utils.metrics.evaluate(train_pre_ratings, train_ratings, ['MSE'], f=None)
 
             # validation metrics on unifi data
             un_val_pre_ratings = torch.empty(0).to(device)
@@ -503,16 +475,6 @@ def train_and_eval_InterD(bias_train, bias_validation, bias_test, unif_validatio
     print('Loading {}th epoch'.format(early_stopping_cff.best_epoch))
     CFF_model.load_state_dict(early_stopping_cff.best_state)
 
-    #MF results
-    print('#'*30)
-    print(f'The performances of MF on unbiased test are UAUC: {str(MF_metrics[0])}, NDCG: {str(MF_metrics[1])}')
-    print(f'The performances of MF on biased test are UAUC: {str(MF_metrics[2])}, NDCG: {str(MF_metrics[3])}')
-
-    #AutoSebias results
-    print('#'*30)
-    print(f'The performances of AutoDebias on unbiased test are UAUC: {str(Auto_metrics[0])}, NDCG: {str(Auto_metrics[1])}')
-    print(f'The performances of AutoDebias on biased test are UAUC: {str(Auto_metrics[2])}, NDCG: {str(Auto_metrics[3])}')
-
     # test metrics on unbias
     print('#'*30)
     CFF_unbias_result, U1, N1 = both_test(test_loader, CFF_model, ('InterD', 'CFF', 'unbias'))
@@ -525,6 +487,7 @@ def train_and_eval_InterD(bias_train, bias_validation, bias_test, unif_validatio
     print(f'MF ********** F1-UAUC : {str(round(2*MF_metrics[0]*MF_metrics[2]/(MF_metrics[0]+MF_metrics[2]),4))}, F1-NDCG: {str(round(2*MF_metrics[1]*MF_metrics[3]/(MF_metrics[1]+MF_metrics[3]),4))}')
     print(f'AutoDebias ** F1-UAUC : {str(round(2*Auto_metrics[0]*Auto_metrics[2]/(Auto_metrics[0]+Auto_metrics[2]),4))}, F1-NDCG: {str(round(2*Auto_metrics[1]*Auto_metrics[3]/(Auto_metrics[1]+Auto_metrics[3]),4))}')
     print(f'InterD ****** F1-UAUC : {str(round(2*U1*U2/(U1+U2),4))}, F1-NDCG: {str(round(2*N1*N2/(N1+N2),4))}')
+    print('#'*30)
 
 
 if __name__ == "__main__": 

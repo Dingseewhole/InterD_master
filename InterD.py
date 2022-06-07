@@ -28,16 +28,16 @@ def para(args):
         args.weight2_model_args = { "learning_rate": 0.001, "weight_decay": 0.01}
         args.imputation_model_args = { "learning_rate": 0.1, "weight_decay": 0.0001}
     elif args.dataset == 'coat':
-        args.training_args = {'batch_size': 128, 'epochs': 2000, 'patience': 100, 'block_batch': [64, 64]}
+        args.training_args = {'batch_size': 128, 'epochs': 2000, 'patience': 50, 'block_batch': [64, 64]}
         args.InterD_model_args = {"emb_dim": 10, "learning_rate": 0.009, "weight_decay": 0}
         args.MF_model_args = {"emb_dim": 10, "learning_rate": 0.001, "weight_decay": 0, 'patience': 80}
         args.Auto_model_args = {"emb_dim": 10, "learning_rate": 1e-5, "weight_decay": 0, 'imputaion_lambda': 0.01, 'epoch': 2000}
         args.weight1_model_args = { "learning_rate": 1e-5, "weight_decay": 1e-5}
         args.weight2_model_args = { "learning_rate": 1e-5, "weight_decay": 0}
-        args.imputation_model_args = { "learning_rate": 0.0001, "weight_decay": 0.05}
-        args.gama = 0.5
+        args.imputation_model_args = { "learning_rate": 0.0005, "weight_decay": 0.01}
+        args.gama = 0.05
         args.gama2 = 1
-        args.beta = 0.05
+        args.beta = 0.1
     else: 
         print('invalid arguments')
         os._exit()

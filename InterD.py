@@ -37,7 +37,7 @@ def para(args):
         args.imputation_model_args = { "learning_rate": 0.0005, "weight_decay": 0.01}
         args.gama = 0.05
         args.gama2 = 1
-        args.beta = 0.1
+        args.beta = 0.05
     else: 
         print('invalid arguments')
         os._exit()
@@ -366,7 +366,10 @@ def train_and_eval_InterD(bias_train, bias_validation, bias_test, unif_validatio
     imputation_model = Trained_AutoDebias_model[3]
     
     CFF_model = MF_MSE(n_user, n_item, dim=args.InterD_model_args['emb_dim'], dropout=0).to(device)
-    CFF_model.load_state_dict(CF_model.state_dict())
+    if args.dataset == 'yahooR3':
+        CFF_model.load_state_dict(CF_model.state_dict())
+    else:
+        CFF_model.load_state_dict(F_model.state_dict())
     InterD_optimizer = torch.optim.SGD(CFF_model.params(), lr=args.InterD_model_args['learning_rate'], weight_decay=0)
     # loss_criterion
     sum_criterion = nn.MSELoss(reduction='sum')
@@ -382,9 +385,6 @@ def train_and_eval_InterD(bias_train, bias_validation, bias_test, unif_validatio
         for u_batch_idx, users in enumerate(train_loader.User_loader): 
             for i_batch_idx, items in enumerate(train_loader.Item_loader): 
                 users_train, items_train, y_train = train_loader.get_batch(users, items)
-                # if args.dataset == 'coat':
-                #     y_train = torch.where(y_train<-1*torch.ones_like(y_train), -1*torch.ones_like(y_train), y_train)
-                #     y_train = torch.where(y_train >1*torch.ones_like(y_train), torch.ones_like(y_train), y_train)
                 CF_pred = CF_model.forward(users_train, items_train)
                 F_pred = F_model.forward(users_train, items_train)
                 weight1 = weight1_model(users_train, items_train,(y_train==1)*1)

@@ -8,7 +8,7 @@ by  Sihao Ding, Fuli Feng, Xiangnan He, Jinqiu Jin, Wenjie Wang, Yong Liao and Y
 Published at SIGIR 2022. If you use this code please cite our paper.
 
 ```
-@inproceedings{InterD,
+@inproceedings{ding2022interpolative,
 author = {Ding, Sihao and Feng, Fuli and He, Xiangnan and Jin, Jinqiu and Wang, Wenjie and Liao, Yong and Zhang, Yongdong},
 title = {Interpolative Distillation for Unifying Biased and Debiased Recommendation},
 year = {2022},
@@ -33,7 +33,7 @@ The code runs well under python 3.8.10. The required packages are as follows:
 - tqdm == 4.62.3 
 
 ## Datasets
-We use public/private dataset. 
+We use public/private datasets. 
 
 - user.txt: biased data collected by normal policy of recommendation platform. For Yahoo!R3 and Coat, each line is user ID, item ID, rating of the user to the item. For Simulation, each line is user ID, item ID, position of the item, binary rating of the user to the item. 
 - random.txt: unbiased data collected by stochastic policy where items are assigned to users randomly. Each line in the file is user ID, item ID, rating of the user to the item. 

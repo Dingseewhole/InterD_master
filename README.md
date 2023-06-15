@@ -7,6 +7,16 @@ by  Sihao Ding, Fuli Feng, Xiangnan He, Jinqiu Jin, Wenjie Wang, Yong Liao and Y
 
 Published at SIGIR 2022. If you use this code please cite our paper.
 
+```
+@inproceedings{InterD,
+author = {Ding, Sihao and Feng, Fuli and He, Xiangnan and Jin, Jinqiu and Wang, Wenjie and Liao, Yong and Zhang, Yongdong},
+title = {Interpolative Distillation for Unifying Biased and Debiased Recommendation},
+year = {2022},
+booktitle = {Proceedings of the 45th International ACM SIGIR Conference on Research and Development in Information Retrieval},
+pages = {40–49}
+}
+```
+
 ## Introduction
 
 InterD is a method that unifies biased and debiased methods as teachers to ahcieve strong performance on both normal biased test and debiased test with alleviating over-debiased issue and bias amplification issue in recommendation.
